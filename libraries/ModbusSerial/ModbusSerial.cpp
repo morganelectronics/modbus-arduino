@@ -3,9 +3,20 @@
     Copyright (C) 2014 André Sarmento Barbosa
 */
 #include "ModbusSerial.h"
+#include <Balance.h>
 
-ModbusSerial::ModbusSerial() {
+ModbusSerial::ModbusSerial( bool balance): _balance(balance),_preTransmission(0),_postTransmission(0) {
+    _reply = MB_REPLY_OFF;
+}
 
+void ModbusSerial::preTransmission(void (*preTransmission)())
+{
+  _preTransmission = preTransmission;
+}
+
+void ModbusSerial::postTransmission(void (*postTransmission)())
+{
+  _postTransmission = postTransmission;
 }
 
 bool ModbusSerial::setSlaveId(byte slaveId){
@@ -17,17 +28,8 @@ byte ModbusSerial::getSlaveId() {
     return _slaveId;
 }
 
-bool ModbusSerial::config(HardwareSerial* port, long baud, u_int format, int txPin) {
+void ModbusSerial::config(Stream* port, uint32_t baud ) {
     this->_port = port;
-    this->_txPin = txPin;
-    (*port).begin(baud, format);
-
-    delay(2000);
-
-    if (txPin >= 0) {
-        pinMode(txPin, OUTPUT);
-        digitalWrite(txPin, LOW);
-    }
 
     if (baud > 19200) {
         _t15 = 750;
@@ -37,57 +39,11 @@ bool ModbusSerial::config(HardwareSerial* port, long baud, u_int format, int txP
         _t35 = 35000000/baud; // 1T * 3.5 = T3.5
     }
 
-    return true;
+    // Get ready to receive
+    if(_postTransmission){
+        _postTransmission();
+    }
 }
-
-#ifdef USE_SOFTWARE_SERIAL
-bool ModbusSerial::config(SoftwareSerial* port, long baud, int txPin) {
-    this->_port = port;
-    this->_txPin = txPin;
-    (*port).begin(baud);
-
-    delay(2000);
-
-    if (txPin >= 0) {
-        pinMode(txPin, OUTPUT);
-        digitalWrite(txPin, LOW);
-    }
-
-    if (baud > 19200) {
-        _t15 = 750;
-        _t35 = 1750;
-    } else {
-        _t15 = 15000000/baud; // 1T * 1.5 = T1.5
-        _t35 = 35000000/baud; // 1T * 3.5 = T3.5
-    }
-
-    return true;
-}
-#endif
-
-#ifdef __AVR_ATmega32U4__
-bool ModbusSerial::config(Serial_* port, long baud, u_int format, int txPin) {
-    this->_port = port;
-    this->_txPin = txPin;
-    (*port).begin(baud, format);
-    while (!(*port));
-
-    if (txPin >= 0) {
-        pinMode(txPin, OUTPUT);
-        digitalWrite(txPin, LOW);
-    }
-
-    if (baud > 19200) {
-        _t15 = 750;
-        _t35 = 1750;
-    } else {
-        _t15 = 15000000/baud; // 1T * 1.5 = T1.5
-        _t35 = 35000000/baud; // 1T * 3.5 = T3.5
-    }
-
-    return true;
-}
-#endif
 
 bool ModbusSerial::receive(byte* frame) {
     //first byte of frame = address
@@ -96,7 +52,8 @@ bool ModbusSerial::receive(byte* frame) {
     u_int crc = ((frame[_len - 2] << 8) | frame[_len - 1]);
 
     //Slave Check
-    if (address != 0xFF && address != this->getSlaveId()) {
+    // 0 is broadcast address
+    if (address != BROADCAST_ADDRESS && address != this->getSlaveId()) {
 		return false;
 	}
 
@@ -109,82 +66,82 @@ bool ModbusSerial::receive(byte* frame) {
     //framesize PDU = framesize - address(1) - crc(2)
     this->receivePDU(frame+1);
     //No reply to Broadcasts
-    if (address == 0xFF) _reply = MB_REPLY_OFF;
+    if (address == BROADCAST_ADDRESS) _reply = MB_REPLY_OFF;
     return true;
 }
 
 bool ModbusSerial::send(byte* frame) {
     byte i;
 
-    if (this->_txPin >= 0) {
-        digitalWrite(this->_txPin, HIGH);
-        delay(1);
+    if(_preTransmission){
+        _preTransmission();
     }
 
-    for (i = 0 ; i < _len ; i++) {
-        (*_port).write(frame[i]);
-    }
+    //Send slaveId
+    _sf.clearFrame();
+    _sf.addBytes(frame,_len);
 
+    (*_port).write(_sf.pGetFrame(),_sf.getFrameSize());
     (*_port).flush();
     delayMicroseconds(_t35);
 
-    if (this->_txPin >= 0) {
-        digitalWrite(this->_txPin, LOW);
+    if(_postTransmission){
+        _postTransmission();
     }
 }
 
 bool ModbusSerial::sendPDU(byte* pduframe) {
-    if (this->_txPin >= 0) {
-        digitalWrite(this->_txPin, HIGH);
-        delay(1);
+
+    if(_preTransmission){
+        _preTransmission();
     }
 
     //Send slaveId
-    (*_port).write(_slaveId);
+    _sf.clearFrame();
+    _sf.addByte(_slaveId);
 
     //Send PDU
     byte i;
-    for (i = 0 ; i < _len ; i++) {
-        (*_port).write(pduframe[i]);
-    }
+    _sf.addBytes(pduframe,_len);
 
     //Send CRC
-    word crc = calcCrc(_slaveId, _frame, _len);
-    (*_port).write(crc >> 8);
-    (*_port).write(crc & 0xFF);
+    word crc = calcCrc(_slaveId, pduframe, _len);
+    _sf.addByte(crc >> 8);
+    _sf.addByte(crc & 0xFF);
 
+    (*_port).write(_sf.pGetFrame(),_sf.getFrameSize());
     (*_port).flush();
     delayMicroseconds(_t35);
 
-    if (this->_txPin >= 0) {
-        digitalWrite(this->_txPin, LOW);
+    if(_postTransmission){
+        _postTransmission();
     }
 }
 
 void ModbusSerial::task() {
-    _len = 0;
-
-    while ((*_port).available() > _len)	{
-        _len = (*_port).available();
-        delayMicroseconds(_t15);
+    if( _reply != MB_REPLY_OFF ){
+        if( millis() - _receive_time > ku32Delay_ms ){
+            if (_reply == MB_REPLY_NORMAL)
+            {
+                this->sendPDU(_frame);
+            }
+            if (_reply == MB_REPLY_ECHO){
+                this->send(_frame);
+            }
+            _rf.clearFrame();
+            _reply = MB_REPLY_OFF;
+        }
     }
-
-    if (_len == 0) return;
-
-    byte i;
-    _frame = (byte*) malloc(_len);
-    for (i=0 ; i < _len ; i++) _frame[i] = (*_port).read();
-
-    if (this->receive(_frame)) {
-        if (_reply == MB_REPLY_NORMAL)
-            this->sendPDU(_frame);
-        else
-        if (_reply == MB_REPLY_ECHO)
-            this->send(_frame);
+    else{
+         if(_rf.receiveByte((*_port).read())){
+            _frame=_rf.pGetFrame();
+            _len=_rf.getFrameSize();
+        
+            if (receive(_frame)){
+                _receive_time = millis();
+            }
+        }
     }
-
-    free(_frame);
-    _len = 0;
 }
 
 word ModbusSerial::calcCrc(byte address, byte* pduFrame, byte pduLen) {
@@ -204,6 +161,13 @@ word ModbusSerial::calcCrc(byte address, byte* pduFrame, byte pduLen) {
 }
 
 
-
-
-
+void ModbusSerial::write(uint8_t data){
+    if(_balance)
+    {
+        (*_port).write(getBalancedLow(&data,0));
+        (*_port).write(getBalancedHigh(&data,0));
+    }
+    else{
+        (*_port).write(data);
+    }
+}

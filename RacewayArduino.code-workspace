@@ -1,0 +1,34 @@
+{
+	"folders": [
+		{
+			"path": "RacewaySlave"
+		},
+		{
+			"path": "C:\\Users\\Kurt\\AppData\\Local\\Arduino15\\packages\\STM32\\hardware\\stm32\\1.2.0"
+		},
+		{
+			"path": "libraries"
+		},
+		{
+			"path": "RacewayMaster"
+		},
+		{
+			"path": "BalanceMasterTest"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"ostream": "cpp",
+			"iosfwd": "cpp",
+			"xutility": "cpp",
+			"arduino.h": "c",
+			"stm32f0xx.h": "c",
+			"stm32f030x8.h": "c",
+			"peripheralpins.h": "c",
+			"pinmap.h": "c",
+			"initializer_list": "cpp",
+			"type_traits": "cpp",
+			"xstring": "cpp"
+		}
+	}
+}

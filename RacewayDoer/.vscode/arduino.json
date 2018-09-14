@@ -1,0 +1,6 @@
+{
+    "sketch": "RacewaySlave.ino",
+    "board": "STM32:stm32:doer_ao",
+    "configuration": "pnum=NUCLEO_F030R8,upload_method=MassStorage,opt=oslto",
+    "output": "../build"
+}

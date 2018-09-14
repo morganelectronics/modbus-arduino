@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "C:\\Users\\Kurt\\AppData\\Local\\Arduino15\\packages\\STM32\\tools\\**",
+                "C:\\Users\\Kurt\\AppData\\Local\\Arduino15\\packages\\STM32\\hardware\\stm32\\1.2.0\\**"
+            ],
+            "forcedInclude": [
+                "C:\\Users\\Kurt\\AppData\\Local\\Arduino15\\packages\\STM32\\hardware\\stm32\\1.2.0\\cores\\arduino\\Arduino.h"
+            ],
+            "intelliSenseMode": "msvc-x64",
+            "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC/bin/cl.exe",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        }
+    ],
+    "version": 4
+}

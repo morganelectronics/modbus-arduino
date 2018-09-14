@@ -1,6 +1,6 @@
 /*
     Modbus.h - Header for Modbus Base Library
-    Copyright (C) 2014 André Sarmento Barbosa
+    Copyright (C) 2014 Andrï¿½ Sarmento Barbosa
 */
 #include "Arduino.h"
 
@@ -9,6 +9,7 @@
 
 #define MAX_REGS     32
 #define MAX_FRAME   128
+#define BROADCAST_ADDRESS 0
 //#define USE_HOLDING_REGISTERS_ONLY
 
 typedef unsigned int u_int;
